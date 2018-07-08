@@ -7,14 +7,15 @@ import (
 
 // CeleryClient provides API for sending celery tasks
 type CeleryClient struct {
-	broker  CeleryBroker
-	backend CeleryBackend
-	worker  *CeleryWorker
+	broker    CeleryBroker
+	backend   CeleryBackend
+	queueName string
+	worker    *CeleryWorker
 }
 
 // CeleryBroker is interface for celery broker database
 type CeleryBroker interface {
-	SendCeleryMessage(*CeleryMessage) error
+	SendCeleryMessage(*CeleryMessage, string) error
 	GetTaskMessage() (*TaskMessage, error) // must be non-blocking
 }
 
@@ -25,10 +26,11 @@ type CeleryBackend interface {
 }
 
 // NewCeleryClient creates new celery client
-func NewCeleryClient(broker CeleryBroker, backend CeleryBackend, numWorkers int) (*CeleryClient, error) {
+func NewCeleryClient(broker CeleryBroker, backend CeleryBackend, numWorkers int, queueName string) (*CeleryClient, error) {
 	return &CeleryClient{
 		broker,
 		backend,
+		queueName,
 		NewCeleryWorker(broker, backend, numWorkers),
 	}, nil
 }
@@ -70,7 +72,7 @@ func (cc *CeleryClient) delay(task *TaskMessage) (*AsyncResult, error) {
 	}
 	celeryMessage := getCeleryMessage(encodedMessage)
 	defer releaseCeleryMessage(celeryMessage)
-	err = cc.broker.SendCeleryMessage(celeryMessage)
+	err = cc.broker.SendCeleryMessage(celeryMessage, cc.queueName)
 	if err != nil {
 		return nil, err
 	}
